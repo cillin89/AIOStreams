@@ -23,6 +23,7 @@ import {
   createLogger,
   getTimeTakenSincePoint,
   isValueEncrypted,
+  maskSensitiveInfo,
 } from '@aiostreams/utils';
 
 const logger = createLogger('server');
@@ -98,7 +99,7 @@ app.use((req, res, next) => {
         .replace(
           /\/(E2?|B)?-[\w-\%]+/g,
           '/*******'
-        )} - ${Settings.LOG_SENSITIVE_INFO ? getIp(req) : '<redactedIp>'} - ${res.statusCode} - ${getTimeTakenSincePoint(start)}`
+        )} - ${getIp(req) ? maskSensitiveInfo(getIp(req)!) : 'Unknown IP'} - ${res.statusCode} - ${getTimeTakenSincePoint(start)}`
     );
   });
   next();
@@ -479,6 +480,9 @@ function decryptEncryptedInfoFromConfig(config: Config): Config {
   if (config.mediaFlowConfig) {
     decryptMediaFlowConfig(config.mediaFlowConfig);
   }
+  if (config.stremThruConfig) {
+    decryptStremThruConfig(config.stremThruConfig);
+  }
 
   if (config.apiKey) {
     config.apiKey = decryptValue(config.apiKey, 'aioStreams apiKey');
@@ -519,6 +523,16 @@ function decryptMediaFlowConfig(mediaFlowConfig: {
   mediaFlowConfig.publicIp = decryptValue(publicIp, 'MediaFlow publicIp');
 }
 
+function decryptStremThruConfig(
+  stremThruConfig: Config['stremThruConfig']
+): void {
+  if (!stremThruConfig) return;
+  const { url, credential, publicIp } = stremThruConfig;
+  stremThruConfig.url = decryptValue(url, 'StremThru url');
+  stremThruConfig.credential = decryptValue(credential, 'StremThru credential');
+  stremThruConfig.publicIp = decryptValue(publicIp, 'StremThru publicIp');
+}
+
 function encryptInfoInConfig(config: Config): Config {
   if (config.services) {
     config.services.forEach(
@@ -537,7 +551,13 @@ function encryptInfoInConfig(config: Config): Config {
     encryptMediaFlowConfig(config.mediaFlowConfig);
   }
 
+  if (config.stremThruConfig) {
+    encryptStremThruConfig(config.stremThruConfig);
+  }
+
   if (config.apiKey) {
+    // we can either remove the api key for better security or encrypt it for usability
+    // removing it means the user has to enter it every time upon reconfiguration.
     config.apiKey = encryptValue(config.apiKey, 'aioStreams apiKey');
   }
 
@@ -578,6 +598,16 @@ function encryptMediaFlowConfig(mediaFlowConfig: {
   );
   mediaFlowConfig.proxyUrl = encryptValue(proxyUrl, 'MediaFlow proxyUrl');
   mediaFlowConfig.publicIp = encryptValue(publicIp, 'MediaFlow publicIp');
+}
+
+function encryptStremThruConfig(
+  stremThruConfig: Config['stremThruConfig']
+): void {
+  if (!stremThruConfig) return;
+  const { url, credential, publicIp } = stremThruConfig;
+  stremThruConfig.url = encryptValue(url, 'StremThru url');
+  stremThruConfig.credential = encryptValue(credential, 'StremThru credential');
+  stremThruConfig.publicIp = encryptValue(publicIp, 'StremThru publicIp');
 }
 
 function processObjectValues(
